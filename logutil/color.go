@@ -25,12 +25,12 @@ type colorLogger struct {
 	l log.Logger
 }
 
-func (cl *colorLogger) Log(t time.Time, level int, s string) {
+func (cl *colorLogger) Log(t time.Time, level int, s []byte) {
 	cl.b = cl.b[:0]
 	cl.b = append(cl.b, logColor[level]...)
 	cl.b = append(cl.b, s...)
 	cl.b = append(cl.b, colorEnd...)
-	cl.l.Log(t, level, string(cl.b))
+	cl.l.Log(t, level, cl.b)
 }
 
 func WithColor(logger log.Logger) log.Logger {

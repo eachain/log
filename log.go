@@ -51,7 +51,7 @@ var levels = []string{
 // - - - - - - - - - logger - - - - - - - - -
 
 type Logger interface {
-	Log(t time.Time, level int, s string)
+	Log(t time.Time, level int, s []byte)
 }
 
 func itoa(buf *bytes.Buffer, i int, wid int) {
@@ -160,7 +160,7 @@ func output(lvl int, calldepth int, s string) {
 	if len(s) > 0 && s[len(s)-1] != '\n' {
 		global.buf.WriteByte('\n')
 	}
-	global.out.Log(now, lvl, global.buf.String())
+	global.out.Log(now, lvl, global.buf.Bytes())
 	global.mu.Unlock()
 }
 
@@ -222,8 +222,8 @@ type writerLogger struct {
 	w io.Writer
 }
 
-func (sl writerLogger) Log(t time.Time, level int, s string) {
-	sl.w.Write([]byte(s))
+func (sl writerLogger) Log(t time.Time, level int, s []byte) {
+	sl.w.Write(s)
 }
 
 func NewLogger(w io.Writer) Logger {

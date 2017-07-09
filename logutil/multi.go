@@ -10,7 +10,7 @@ type multiLogger struct {
 	loggers []log.Logger
 }
 
-func (ml *multiLogger) Log(t time.Time, level int, s string) {
+func (ml *multiLogger) Log(t time.Time, level int, s []byte) {
 	for _, l := range ml.loggers {
 		l.Log(t, level, s)
 	}

@@ -110,9 +110,12 @@ func main() {
 
 ```go
 type Logger interface {
-    Log(t time.Time, level int, s string)
+    Log(t time.Time, level int, s []byte)
 }
 ```
+
+**(注意: 如果要异步处理日志，请先复制一份`s []byte`再异步，见`https://github.com/eachain/log/blob/master/logutil/cached.go`，因为日志用的公用缓存，不同步处理，会被后面的日志覆盖式修改。)**
+
 只要实现了Logger接口，就可以无限嵌套，形成一条链，像io.Reader，像http.Handler，都是可以不断地在接口上加功能，形成强大的功能。
 
 比如，你可以根据文件大小，依次生成新文件；也可以根据日期生成新文件；还可以将不同level的日志打到不同文件中去。
@@ -142,7 +145,7 @@ type fileLogger struct {
 	file   *os.File
 }
 
-func (fl *fileLogger) Log(t time.Time, level int, s string) {
+func (fl *fileLogger) Log(t time.Time, level int, s []byte) {
 	newDate := t.Format("060102")
 	if fl.date != newDate && fl.file != nil {
 		fl.file.Close()
@@ -165,7 +168,7 @@ func (fl *fileLogger) Log(t time.Time, level int, s string) {
 		fl.date = newDate
 	}
 
-	fl.file.WriteString(s)
+	fl.file.Write(s)
 }
 
 func newFileLogger(prefix string) log.Logger {
@@ -179,7 +182,7 @@ type levelLogger struct {
 	err  log.Logger
 }
 
-func (ll *levelLogger) Log(t time.Time, level int, s string) {
+func (ll *levelLogger) Log(t time.Time, level int, s []byte) {
 	ll.info.Log(t, level, s)
 	if level >= log.Lerror {
 		ll.err.Log(t, level, s)
@@ -189,8 +192,6 @@ func (ll *levelLogger) Log(t time.Time, level int, s string) {
 func newLevelLogger(info, err log.Logger) log.Logger {
 	return &levelLogger{info: info, err: err}
 }
-
-// - - - - - - - - - - - - - - - - - - - -
 
 func main() {
 	log.SetFlags(log.Flags() | log.Lmodule | log.Lshortfile)

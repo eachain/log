@@ -6,16 +6,16 @@ import (
 	"github.com/eachain/log"
 )
 
-type multiLogger struct {
-	loggers []log.Logger
+type multiWriter struct {
+	ws []log.Writer
 }
 
-func (ml *multiLogger) Log(t time.Time, level int, s []byte) {
-	for _, l := range ml.loggers {
-		l.Log(t, level, s)
+func (mw *multiWriter) WriteLog(t time.Time, level int, s []byte) {
+	for _, w := range mw.ws {
+		w.WriteLog(t, level, s)
 	}
 }
 
-func MultiLogger(logger ...log.Logger) log.Logger {
-	return &multiLogger{loggers: logger}
+func MultiWriter(wr ...log.Writer) log.Writer {
+	return &multiWriter{ws: wr}
 }

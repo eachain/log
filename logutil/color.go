@@ -20,19 +20,19 @@ var logColor = []string{
 	log.Lfatal:  "\033[1;31m",
 }
 
-type colorLogger struct {
+type colorWriter struct {
 	b []byte
-	l log.Logger
+	w log.Writer
 }
 
-func (cl *colorLogger) Log(t time.Time, level int, s []byte) {
-	cl.b = cl.b[:0]
-	cl.b = append(cl.b, logColor[level]...)
-	cl.b = append(cl.b, s...)
-	cl.b = append(cl.b, colorEnd...)
-	cl.l.Log(t, level, cl.b)
+func (cw *colorWriter) WriteLog(t time.Time, level int, s []byte) {
+	cw.b = cw.b[:0]
+	cw.b = append(cw.b, logColor[level]...)
+	cw.b = append(cw.b, s...)
+	cw.b = append(cw.b, colorEnd...)
+	cw.w.WriteLog(t, level, cw.b)
 }
 
-func WithColor(logger log.Logger) log.Logger {
-	return &colorLogger{l: logger}
+func WithColor(w log.Writer) log.Writer {
+	return &colorWriter{w: w}
 }

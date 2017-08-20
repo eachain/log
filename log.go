@@ -60,6 +60,8 @@ func (wr writer) WriteLog(t time.Time, level int, s []byte) {
 	wr.w.Write(s)
 }
 
+// NewWriter returns a Writer.
+// It is w's responsibility to write currently safe.
 func NewWriter(w io.Writer) Writer {
 	return writer{w: w}
 }
@@ -67,8 +69,7 @@ func NewWriter(w io.Writer) Writer {
 // - - - - - - - - - logger - - - - - - - - -
 
 type Logger struct {
-	mu        sync.Mutex    // just for buf
-	buf       *bytes.Buffer // for accumulating text to write
+	pool      *sync.Pool // a buf pool
 	flag      int
 	level     int
 	out       Writer
@@ -77,7 +78,11 @@ type Logger struct {
 
 func NewLogger(w Writer, flag int, level int) *Logger {
 	return &Logger{
-		buf:       bytes.NewBuffer(nil),
+		pool: &sync.Pool{
+			New: func() interface{} {
+				return bytes.NewBuffer(nil)
+			},
+		},
 		flag:      flag,
 		level:     level,
 		out:       w,
@@ -143,40 +148,40 @@ func moduleOf(file string) string {
 	return "UNKNOWN"
 }
 
-func (l *Logger) formatHeader(t time.Time, file string, line int, lvl int) {
+func (l *Logger) formatHeader(buf *bytes.Buffer, t time.Time, file string, line int, lvl int) {
 	if l.flag&(Ldate|Ltime|Lmicroseconds) != 0 {
 		if l.flag&Ldate != 0 {
 			year, month, day := t.Date()
-			itoa(l.buf, year, 4)
-			l.buf.WriteByte('-')
-			itoa(l.buf, int(month), 2)
-			l.buf.WriteByte('-')
-			itoa(l.buf, day, 2)
-			l.buf.WriteByte(' ')
+			itoa(buf, year, 4)
+			buf.WriteByte('-')
+			itoa(buf, int(month), 2)
+			buf.WriteByte('-')
+			itoa(buf, day, 2)
+			buf.WriteByte(' ')
 		}
 		if l.flag&(Ltime|Lmicroseconds) != 0 {
 			hour, min, sec := t.Clock()
-			itoa(l.buf, hour, 2)
-			l.buf.WriteByte(':')
-			itoa(l.buf, min, 2)
-			l.buf.WriteByte(':')
-			itoa(l.buf, sec, 2)
+			itoa(buf, hour, 2)
+			buf.WriteByte(':')
+			itoa(buf, min, 2)
+			buf.WriteByte(':')
+			itoa(buf, sec, 2)
 			if l.flag&Lmicroseconds != 0 {
-				l.buf.WriteByte('.')
-				itoa(l.buf, t.Nanosecond()/1e6, 3)
+				buf.WriteByte('.')
+				itoa(buf, t.Nanosecond()/1e6, 3)
 			}
-			l.buf.WriteByte(' ')
+			buf.WriteByte(' ')
 		}
 	}
 	if l.flag&Llevel != 0 {
-		l.buf.WriteString(levels[lvl])
-		l.buf.WriteByte(' ')
+		buf.WriteString(levels[lvl])
+		buf.WriteByte(' ')
 	}
 	if l.flag&Lmodule != 0 {
-		l.buf.WriteByte('[')
-		l.buf.WriteString(moduleOf(file))
-		l.buf.WriteByte(']')
-		l.buf.WriteByte(' ')
+		buf.WriteByte('[')
+		buf.WriteString(moduleOf(file))
+		buf.WriteByte(']')
+		buf.WriteByte(' ')
 	}
 	if l.flag&(Lshortfile|Llongfile) != 0 {
 		if l.flag&Lshortfile != 0 {
@@ -189,10 +194,10 @@ func (l *Logger) formatHeader(t time.Time, file string, line int, lvl int) {
 			}
 			file = short
 		}
-		l.buf.WriteString(file)
-		l.buf.WriteByte(':')
-		itoa(l.buf, line, -1)
-		l.buf.WriteString(": ")
+		buf.WriteString(file)
+		buf.WriteByte(':')
+		itoa(buf, line, -1)
+		buf.WriteString(": ")
 	}
 }
 
@@ -208,15 +213,15 @@ func (l *Logger) output(lvl int, s string) {
 			line = 0
 		}
 	}
-	l.mu.Lock()
-	l.buf.Reset()
-	l.formatHeader(now, file, line, lvl)
-	l.buf.WriteString(s)
+	buf := l.pool.Get().(*bytes.Buffer)
+	buf.Reset()
+	l.formatHeader(buf, now, file, line, lvl)
+	buf.WriteString(s)
 	if len(s) > 0 && s[len(s)-1] != '\n' {
-		l.buf.WriteByte('\n')
+		buf.WriteByte('\n')
 	}
-	l.out.WriteLog(now, lvl, l.buf.Bytes())
-	l.mu.Unlock()
+	l.out.WriteLog(now, lvl, buf.Bytes())
+	l.pool.Put(buf)
 }
 
 func (l *Logger) Debug(format string, v ...interface{}) {
@@ -273,10 +278,26 @@ func (l *Logger) Fatal(format string, v ...interface{}) {
 
 // - - - - - - - - - std logger - - - - - - - - -
 
+type mutexWriter struct {
+	m sync.Mutex
+	w io.Writer
+}
+
+func (mw *mutexWriter) WriteLog(t time.Time, level int, s []byte) {
+	mw.m.Lock()
+	mw.w.Write(s)
+	mw.m.Unlock()
+}
+
+// NewMutexWriter returns a currently safe writer.
+func NewMutexWriter(w io.Writer) Writer {
+	return writer{w: w}
+}
+
 var std *Logger
 
 func init() {
-	std = NewLogger(NewWriter(os.Stderr), LstdFlags, Linfo)
+	std = NewLogger(NewMutexWriter(os.Stderr), LstdFlags, Linfo)
 	std.SetCallDepth(std.CallDepth() + 1)
 }
 

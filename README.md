@@ -73,7 +73,7 @@ import (
 )
 
 func main() {
-	log.SetOutput(logutil.WithColor(log.NewMutexWriter(os.Stdout)))
+	log.SetOutput(logutil.WithColor(log.NewWriter(os.Stdout)))
 	log.Info("Hello eachain log!")
 }
 ```
@@ -146,7 +146,7 @@ type fileWriter struct {
 	file   *os.File
 }
 
-func (fw *fileWriter) changeFile(t time.Time, level int) {
+func (fw *fileWriter) changeFile(t time.Time) {
 	newDate := t.Format("060102")
 	if fw.date != newDate && fw.file != nil {
 		fw.file.Close()
@@ -172,7 +172,7 @@ func (fw *fileWriter) changeFile(t time.Time, level int) {
 
 func (fw *fileWriter) WriteLog(t time.Time, level int, s []byte) {
 	fw.Lock()
-	fw.changeFile(t, level)
+	fw.changeFile(t)
 	fw.file.Write(s)
 	fw.Unlock()
 }

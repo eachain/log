@@ -3,6 +3,7 @@
 package logutil
 
 import (
+	"sync"
 	"time"
 
 	"github.com/eachain/log"
@@ -21,16 +22,19 @@ var logColor = []string{
 }
 
 type colorWriter struct {
+	m sync.Mutex
 	b []byte
 	w log.Writer
 }
 
 func (cw *colorWriter) WriteLog(t time.Time, level int, s []byte) {
+	cw.m.Lock()
 	cw.b = cw.b[:0]
 	cw.b = append(cw.b, logColor[level]...)
 	cw.b = append(cw.b, s...)
 	cw.b = append(cw.b, colorEnd...)
 	cw.w.WriteLog(t, level, cw.b)
+	c.m.Unlock()
 }
 
 func WithColor(w log.Writer) log.Writer {

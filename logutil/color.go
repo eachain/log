@@ -34,7 +34,7 @@ func (cw *colorWriter) WriteLog(t time.Time, level int, s []byte) {
 	cw.b = append(cw.b, s...)
 	cw.b = append(cw.b, colorEnd...)
 	cw.w.WriteLog(t, level, cw.b)
-	c.m.Unlock()
+	cw.m.Unlock()
 }
 
 func WithColor(w log.Writer) log.Writer {
